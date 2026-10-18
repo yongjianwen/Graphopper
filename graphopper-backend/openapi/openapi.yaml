@@ -1,0 +1,519 @@
+openapi: 3.1.0
+info:
+  title: graphopper-backend API
+  version: 0.1.0
+  description: |
+    Contract-first API for Graphopper clients. Resource operations are added to
+    this document with their implementing user story. JSON property names use
+    lower camel case. Unknown request properties are rejected, while clients
+    must tolerate additive response properties.
+servers:
+  - url: /v1
+    description: Version 1 API base path
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      operationId: getCurrentUser
+      responses:
+        '200': { description: Current local user }
+        '401': { $ref: '#/components/responses/AuthenticationRequired' }
+  /graphs:
+    get:
+      operationId: listGraphs
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { description: Owned graph page }
+    post:
+      operationId: createGraph
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GraphCreate' }
+      responses:
+        '201': { description: Created graph }
+  /graphs/{graphId}:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    get:
+      operationId: getGraph
+      responses:
+        '200': { description: Graph metadata and template summary }
+        '404': { $ref: '#/components/responses/ResourceNotFound' }
+    patch:
+      operationId: updateGraph
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GraphPatch' }
+      responses:
+        '200': { description: Updated graph }
+        '412': { $ref: '#/components/responses/VersionMismatch' }
+    delete:
+      operationId: deleteGraph
+      responses:
+        '204': { description: Graph deleted or already absent }
+  /graphs/{graphId}/template:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    get:
+      operationId: getTemplate
+      responses:
+        '200': { description: Ordered node template }
+  /graphs/{graphId}/template/fields:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    post:
+      operationId: addTemplateField
+      parameters:
+        - $ref: '#/components/parameters/RequiredIfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateFieldInput' }
+      responses:
+        '201': { description: Created template field }
+  /graphs/{graphId}/template/fields/{fieldId}:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+      - $ref: '#/components/parameters/FieldId'
+    patch:
+      operationId: updateTemplateField
+      parameters:
+        - $ref: '#/components/parameters/RequiredIfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateFieldPatch' }
+      responses:
+        '200': { description: Updated template field }
+    delete:
+      operationId: deleteTemplateField
+      parameters:
+        - $ref: '#/components/parameters/RequiredIfMatch'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                destructiveConfirmation: { type: boolean }
+      responses:
+        '204': { description: Template field deleted }
+  /graphs/{graphId}/nodes:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    get:
+      operationId: listNodes
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { description: Node page }
+    post:
+      operationId: createNode
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NodeValues' }
+      responses:
+        '201': { description: Created node }
+  /graphs/{graphId}/nodes/{nodeId}:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+      - $ref: '#/components/parameters/NodeId'
+    get:
+      operationId: getNode
+      responses:
+        '200': { description: Node }
+    patch:
+      operationId: updateNode
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NodeValues' }
+      responses:
+        '200': { description: Updated node }
+    delete:
+      operationId: deleteNode
+      responses:
+        '204': { description: Node and connected relationships deleted }
+  /graphs/{graphId}/relationships:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    get:
+      operationId: listRelationships
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { description: Relationship page }
+    post:
+      operationId: createRelationship
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipInput' }
+      responses:
+        '201': { description: Created relationship }
+  /graphs/{graphId}/relationships/{relationshipId}:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+      - $ref: '#/components/parameters/RelationshipId'
+    get:
+      operationId: getRelationship
+      responses:
+        '200': { description: Relationship }
+    patch:
+      operationId: updateRelationship
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RelationshipPatch' }
+      responses:
+        '200': { description: Updated relationship }
+    delete:
+      operationId: deleteRelationship
+      responses:
+        '204': { description: Relationship deleted }
+  /graphs/{graphId}/traversals:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    get:
+      operationId: traverseGraph
+      parameters:
+        - name: startNodeId
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/OpaqueId' }
+        - name: direction
+          in: query
+          schema:
+            { type: string, enum: [incoming, outgoing, both], default: both }
+        - name: maxDepth
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10, default: 3 }
+      responses:
+        '200': { description: Bounded traversal result }
+  /graphs/{graphId}/data:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    get:
+      operationId: getGraphData
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200': { description: Bounded graph data }
+  /graphs/{graphId}/files:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+    post:
+      operationId: authorizeFileUpload
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FileAuthorizationInput' }
+      responses:
+        '201': { description: Pending file and signed upload authorization }
+  /graphs/{graphId}/files/{fileId}/complete:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+      - $ref: '#/components/parameters/FileId'
+    post:
+      operationId: completeFileUpload
+      responses:
+        '200': { description: Ready managed file }
+  /graphs/{graphId}/files/{fileId}/download:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: authorizeFileDownload
+      responses:
+        '200': { description: Short-lived signed download URL }
+  /graphs/{graphId}/files/{fileId}:
+    parameters:
+      - $ref: '#/components/parameters/GraphId'
+      - $ref: '#/components/parameters/FileId'
+    delete:
+      operationId: deleteFile
+      responses:
+        '204': { description: Unreferenced file scheduled for deletion }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    GraphId:
+      {
+        name: graphId,
+        in: path,
+        required: true,
+        schema: { $ref: '#/components/schemas/OpaqueId' },
+      }
+    FieldId:
+      {
+        name: fieldId,
+        in: path,
+        required: true,
+        schema: { $ref: '#/components/schemas/OpaqueId' },
+      }
+    NodeId:
+      {
+        name: nodeId,
+        in: path,
+        required: true,
+        schema: { $ref: '#/components/schemas/OpaqueId' },
+      }
+    RelationshipId:
+      {
+        name: relationshipId,
+        in: path,
+        required: true,
+        schema: { $ref: '#/components/schemas/OpaqueId' },
+      }
+    FileId:
+      {
+        name: fileId,
+        in: path,
+        required: true,
+        schema: { $ref: '#/components/schemas/OpaqueId' },
+      }
+    Cursor:
+      { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+    Limit:
+      {
+        name: limit,
+        in: query,
+        schema: { type: integer, minimum: 1, maximum: 200 },
+      }
+    IfMatch: { name: If-Match, in: header, schema: { type: string } }
+    RequiredIfMatch:
+      { name: If-Match, in: header, required: true, schema: { type: string } }
+    IdempotencyKey:
+      {
+        name: Idempotency-Key,
+        in: header,
+        schema: { type: string, maxLength: 200 },
+      }
+  schemas:
+    OpaqueId:
+      type: string
+      format: uuid
+      description: Opaque resource identifier; clients must not infer embedded meaning.
+    ResourceVersion:
+      type: integer
+      format: int64
+      minimum: 1
+      readOnly: true
+    Timestamp:
+      type: string
+      format: date-time
+      readOnly: true
+      description: RFC 3339 timestamp with an explicit offset.
+    ErrorCode:
+      type: string
+      enum:
+        - AUTHENTICATION_REQUIRED
+        - TOKEN_INVALID
+        - RESOURCE_NOT_FOUND
+        - VALIDATION_FAILED
+        - NODE_VALUE_INVALID
+        - TEMPLATE_CONFLICT
+        - TEMPLATE_MIGRATION_TOO_LARGE
+        - RESOURCE_VERSION_MISMATCH
+        - QUERY_LIMIT_EXCEEDED
+        - FILE_NOT_READY
+        - RATE_LIMITED
+        - IDEMPOTENCY_KEY_REUSED
+        - CONTENT_TYPE_UNSUPPORTED
+        - INTERNAL_ERROR
+    GraphCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+        templateFields:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/TemplateFieldInput' }
+    GraphPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 5000 }
+    TemplateFieldInput:
+      type: object
+      additionalProperties: false
+      required: [key, label, dataType]
+      properties:
+        key: { type: string, pattern: '^[a-z][a-z0-9_]*$' }
+        label: { type: string, minLength: 1, maxLength: 200 }
+        dataType:
+          {
+            type: string,
+            enum:
+              [
+                text,
+                long_text,
+                integer,
+                decimal,
+                boolean,
+                date,
+                date_time,
+                url,
+                file,
+              ],
+          }
+        required: { type: boolean, default: false }
+        description: { type: [string, 'null'] }
+        defaultValue: {}
+        displayOrder: { type: [integer, 'null'], minimum: 0 }
+        validationRules: { type: object }
+    TemplateFieldPatch:
+      allOf:
+        - $ref: '#/components/schemas/TemplateFieldInput'
+    NodeValues:
+      type: object
+      additionalProperties: false
+      required: [values]
+      properties:
+        values: { type: object }
+    RelationshipInput:
+      type: object
+      additionalProperties: false
+      required: [sourceNodeId, targetNodeId, type]
+      properties:
+        sourceNodeId: { $ref: '#/components/schemas/OpaqueId' }
+        targetNodeId: { $ref: '#/components/schemas/OpaqueId' }
+        type: { type: string, minLength: 1, maxLength: 100 }
+        label: { type: [string, 'null'], maxLength: 500 }
+    RelationshipPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        type: { type: string, minLength: 1, maxLength: 100 }
+        label: { type: [string, 'null'], maxLength: 500 }
+    FileAuthorizationInput:
+      type: object
+      additionalProperties: false
+      required: [originalName, mediaType, sizeBytes]
+      properties:
+        originalName: { type: string, minLength: 1, maxLength: 500 }
+        mediaType:
+          {
+            type: string,
+            enum: [image/jpeg, image/png, image/webp, application/pdf],
+          }
+        sizeBytes: { type: integer, minimum: 0, maximum: 26214400 }
+        checksum: { type: string }
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        fieldId:
+          $ref: '#/components/schemas/OpaqueId'
+        path:
+          type: string
+        reason:
+          type: string
+          minLength: 1
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required:
+            - code
+            - message
+            - requestId
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+              minLength: 1
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ErrorDetail'
+            requestId:
+              type: string
+              minLength: 1
+    CursorPage:
+      type: object
+      additionalProperties: false
+      required:
+        - nextCursor
+        - hasMore
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Opaque, integrity-protected continuation cursor.
+        hasMore:
+          type: boolean
+  responses:
+    AuthenticationRequired:
+      description: A valid bearer token is required.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ResourceNotFound:
+      description: The resource is absent or inaccessible to the authenticated user.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ValidationFailed:
+      description: The request shape or values are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    VersionMismatch:
+      description: The supplied resource version is stale.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }

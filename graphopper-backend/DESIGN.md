@@ -4,7 +4,7 @@
 
 This document defines the initial solution and software architecture for graphopper-backend. It translates the functional requirements in `REQUIREMENTS.md` into an implementable backend design.
 
-The design is authoritative for backend structure and technical behavior unless superseded by a recorded architectural decision. Exact programming language, framework, identity provider, cloud provider, and deployment platform remain open.
+The design is authoritative for backend structure and technical behavior unless superseded by a recorded architectural decision. The implementation language and framework are selected below. The exact identity provider, cloud provider, and deployment platform remain open.
 
 ## 2. Goals
 
@@ -99,6 +99,41 @@ Uploaded photos and files shall be stored in private S3-compatible object storag
 The initial design uses hard deletion. Database foreign keys and explicit service operations shall remove dependent data atomically. Object deletion is coordinated asynchronously because object storage cannot participate in a PostgreSQL transaction.
 
 Audit records may retain non-sensitive facts about a deletion, such as actor, resource type, resource identifier, and timestamp, but shall not retain deleted node values by default.
+
+### 4.8 Initial Implementation Stack
+
+The initial implementation shall use:
+
+- Node.js 24 LTS as the production runtime.
+- TypeScript 6 in strict mode.
+- Fastify 5 as the HTTP adapter.
+- PostgreSQL 18 as the initially supported datastore version.
+- `pg` and Kysely behind PostgreSQL repository adapters.
+- `node-pg-migrate` for controlled deployment-time migrations; API processes shall not migrate automatically at startup.
+- Contract-first OpenAPI 3.1 YAML checked into the application.
+- `jose` for OIDC discovery, JWKS handling, and access-token validation.
+- Application-generated UUIDv7 identifiers using the `uuid` package because Node.js does not provide UUIDv7 directly.
+- Vitest, ESLint, and Prettier for testing and source-quality workflows.
+- npm with a committed lockfile for reproducible dependency installation.
+
+Framework, SQL, migration, OIDC, and object-storage SDK types shall remain in adapters and shall not become domain interfaces. ADR 0001 records the rationale and consequences of this selection.
+
+### 4.9 Initial Operating Limits
+
+The initial defaults and hard limits shall be configurable without weakening the documented hard maximums silently:
+
+| Area | Initial default | Initial hard maximum |
+| --- | --- | --- |
+| JSON request body | 1 MiB | 10 MiB deployment override |
+| List page size | 50 resources | 200 resources |
+| Graph-data response | 1,000 nodes and 2,000 relationships | 10 MiB encoded response |
+| Traversal depth | 3 | 10 |
+| Traversal result | 1,000 nodes and 2,000 relationships | 10 MiB encoded response and 5-second query budget |
+| Managed upload | Deployment-configured | 25 MiB |
+| Pending upload lifetime | 15 minutes | 60 minutes |
+| Synchronous template migration | Up to 10,000 affected nodes | 15-second transaction budget |
+
+The initial managed-file allowlist is JPEG, PNG, WebP, and PDF. Deployments accepting untrusted uploads shall decide and document their malware-scanning policy before enabling uploads. Rate limits, audit retention, backup objectives, and cross-field rule operators remain deliberately deferred to their implementation or deployment stories.
 
 ## 5. System Context
 
@@ -1042,22 +1077,17 @@ End-to-end tests shall exercise a complete user flow through a test identity pro
 
 ## 27. Open Decisions
 
-The following decisions shall be resolved before or during implementation and recorded explicitly:
+The following decisions remain open and shall be resolved before or during their implementation stories:
 
-1. Programming language and backend framework.
-2. Database access and migration tooling.
-3. OpenID Connect provider and supported client flows.
-4. Whether UUIDv7 is supported directly by the selected runtime and database version.
-5. Exact OpenAPI authoring and code-generation workflow.
-6. Maximum request body, page size, graph-data response, traversal depth, and traversal result size.
-7. Supported file media types, file-size limits, malware-scanning policy, and upload expiry.
-8. Exact field validation-rule schema and initial cross-field operators.
-9. Template-migration synchronous size limit.
-10. Idempotency-key retention period and eligible endpoints.
-11. Rate-limit policies.
-12. Audit retention and access policy.
-13. Backup recovery-time and recovery-point objectives.
-14. Deployment platform and secret-management system.
+1. Exact OpenID Connect provider and the enabled provider-specific client flows.
+2. Whether OpenAPI transport types will be generated and, if so, the generation tool and compatibility workflow.
+3. Exact field validation-rule schema and initial cross-field operators.
+4. Idempotency-key retention period and eligible endpoints.
+5. Rate-limit policies.
+6. Audit retention and access policy.
+7. Backup recovery-time and recovery-point objectives.
+8. Deployment platform and secret-management system.
+9. Production malware-scanning policy for managed uploads.
 
 ## 28. Implementation Sequence
 

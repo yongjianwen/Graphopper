@@ -4,7 +4,7 @@
 
 This document defines the initial solution and software architecture for graphopper-cli. It translates `REQUIREMENTS.md` into an implementable command-line design and aligns the client with the contract and security model in `../graphopper-backend/DESIGN.md`.
 
-The document is authoritative for CLI behavior unless superseded by a recorded architectural decision. The implementation language, CLI framework, packaging tool, and exact supported operating systems remain open.
+The document is authoritative for CLI behavior unless superseded by a recorded architectural decision. The initial technology and distribution decisions are recorded here and in `docs/decisions/0001-initial-cli-stack.md`.
 
 ## 2. Goals
 
@@ -120,9 +120,20 @@ The command layer shall not issue HTTP calls, read credential-store internals, o
 - Backend business objects shall not be persisted locally except for bounded caches explicitly introduced later.
 - Shared source code shall not be imported from graphopper-backend.
 
-## 6. Technology Constraints
+## 6. Technology Stack and Constraints
 
-The implementation language and CLI framework are not yet selected. The selected stack shall:
+The initial implementation uses:
+
+- Node.js 24 LTS and TypeScript 6 in strict mode.
+- Commander 15 for command parsing.
+- The built-in Fetch API behind an application-facing backend port.
+- `@napi-rs/keyring` for OS credential storage, with no automatic plaintext fallback.
+- OIDC device authorization for interactive login and `GRAPHOPPER_TOKEN` for process-only automation credentials.
+- UTF-8 JSON configuration in the conventional per-user platform directory.
+- npm with a committed lockfile, Vitest, ESLint, and Prettier.
+- A runtime-dependent npm package supporting macOS 14+ on x64/arm64, Ubuntu 22.04+ on x64/arm64, and Windows 11 on x64.
+
+The selected stack shall:
 
 - Produce distributable command-line artifacts for all supported platforms.
 - Support Unicode arguments, input, and output.
@@ -131,7 +142,7 @@ The implementation language and CLI framework are not yet selected. The selected
 - Detect interactive terminals and terminal capabilities.
 - Produce deterministic machine-readable output.
 - Support reproducible builds and automated cross-platform tests.
-- Avoid requiring a compiler or language runtime unless that distribution tradeoff is explicitly accepted.
+- Require no compiler at installation time; the accepted initial distribution tradeoff is a Node.js 24 runtime dependency.
 
 The CLI and backend may use different languages. The OpenAPI contract, not shared implementation code, is their integration boundary.
 
@@ -766,20 +777,20 @@ Machine-readable errors shall use a CLI-owned envelope that preserves the backen
 
 ### 22.2 Exit Categories
 
-The following stable categories are proposed; exact numeric values shall be assigned before implementation:
+The numeric exit categories are stable:
 
-| Category | Meaning |
-| --- | --- |
-| Success | Command completed successfully |
-| Usage | Invalid command, option, argument, or local input shape |
-| Authentication | Credential missing, expired, rejected, or login failed |
-| Access or not found | Requested resource is absent or inaccessible |
-| Validation | Backend or local value validation failed |
-| Conflict | Resource version or template conflict |
-| Network | DNS, connection, TLS, timeout, or unavailable backend failure |
-| Partial | A documented operation produced incomplete results |
-| Cancelled | User or process cancellation |
-| Internal | Unexpected client failure or incompatible response |
+| Code | Category | Meaning |
+| --- | --- | --- |
+| `0` | Success | Command completed successfully |
+| `2` | Usage | Invalid command, option, argument, or local input shape |
+| `3` | Authentication | Credential missing, expired, rejected, or login failed |
+| `4` | Access or not found | Requested resource is absent or inaccessible |
+| `5` | Validation | Backend or local value validation failed |
+| `6` | Conflict | Resource version or template conflict |
+| `7` | Network | DNS, connection, TLS, timeout, or unavailable backend failure |
+| `8` | Partial | A documented operation produced incomplete or indeterminate results |
+| `70` | Internal | Unexpected client failure or incompatible response |
+| `130` | Cancelled | User or process cancellation |
 
 Every failure returns non-zero. Success returns zero. Scripts shall rely on documented exit categories and JSON error codes rather than parsing human-readable messages.
 
@@ -870,6 +881,8 @@ The initial CLI shall not transmit usage telemetry. Any future telemetry require
 
 ## 26. Packaging and Distribution
 
+The initial channel is a runtime-dependent npm package. Release archives include SHA-256 checksums. Artifact signing and registry publication are deferred; local or CI-produced archives are the selected initial channel. Static Bash, Zsh, and Fish completions are supported.
+
 The distribution process shall provide:
 
 - Versioned artifacts for each supported operating-system and architecture combination.
@@ -881,7 +894,7 @@ The distribution process shall provide:
 
 Shell-completion scripts may be generated for supported shells. Completion shall never make authenticated requests, expose secrets, or enumerate private resources by default.
 
-The supported platform matrix and distribution channels remain open decisions.
+The supported platform matrix is macOS 14+ x64/arm64, Ubuntu 22.04+ x64/arm64, and Windows 11 x64, using Node.js 24.
 
 ## 27. Observability and Diagnostics
 
@@ -1029,26 +1042,25 @@ Each release artifact shall be smoke-tested on its declared platform for startup
 | Environment token leaks | Redaction and secure-source guidance | Add workload-identity integration for automation |
 | Cross-platform presentation diverges | Presenter golden tests and capability detection | Platform-specific rendering only behind common models |
 
-## 31. Open Decisions
+## 31. Resolved Initial Decisions
 
-The following decisions shall be resolved before or during implementation and recorded explicitly:
+The initial implementation decisions are:
 
-1. Implementation language and CLI framework.
-2. Supported operating systems and CPU architectures.
-3. Whether releases are single binaries or runtime-dependent packages.
-4. Configuration file format, filename, and exact per-platform location.
-5. Environment-variable names.
-6. OS credential-store libraries and platform fallback behavior.
-7. Identity-provider device or loopback authentication flow.
-8. Exact numeric exit codes.
-9. Default table columns and primary node display-field convention.
-10. Exact repeated-field assignment and explicit-clear syntax.
-11. JSON error-output selection and envelope details.
-12. Default page size, `--all` safety limit, and traversal presentation limit.
-13. Identifier-only output option name.
-14. Shells supported for completion.
-15. Artifact signing, package repositories, and distribution channels.
-16. Whether local development may use non-TLS endpoints beyond loopback.
+1. Node.js 24, TypeScript 6, Commander 15, npm, and a runtime-dependent package.
+2. The supported platform matrix listed in Section 26.
+3. UTF-8 JSON configuration named `config.json` in `%APPDATA%/Graphopper`, `~/Library/Application Support/Graphopper`, or `$XDG_CONFIG_HOME/graphopper` (with the normal home-directory fallback).
+4. `GRAPHOPPER_PROFILE`, `GRAPHOPPER_SERVER`, `GRAPHOPPER_OUTPUT`, `GRAPHOPPER_TIMEOUT_MS`, `GRAPHOPPER_TOKEN`, and the controlled `GRAPHOPPER_CONFIG_DIR` override.
+5. `@napi-rs/keyring`, with an external or in-memory credential when unavailable and no plaintext fallback.
+6. OIDC device authorization for interactive login.
+7. The exit codes in Section 22.2.
+8. Human tables show at most the first eight returned fields; node labels prefer `label`, then `name`, then the opaque identifier.
+9. Repeated node values use `--value field=value`; explicit removal uses `--clear field` and sends `null`.
+10. `--json-errors` selects the envelope in Section 22.1.
+11. `--all` stops above 10,000 items; default traversal requests 1,000 nodes and 2,000 relationships and terminal rendering stops at 2,000 relationships.
+12. Creation commands use `--id-only`.
+13. Bash, Zsh, and Fish completions are supported.
+14. Release archives use SHA-256 checksums; artifact signing and registry publication are deferred.
+15. Plain HTTP is permitted only for the loopback development origins `localhost`, `127.0.0.1`, and `::1`.
 
 ## 32. Implementation Sequence
 

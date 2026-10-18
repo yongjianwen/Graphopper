@@ -1,0 +1,30 @@
+name: graphopper-cli
+
+on:
+  push:
+    paths:
+      - 'graphopper-cli/**'
+      - '.github/workflows/graphopper-cli.yml'
+  pull_request:
+    paths:
+      - 'graphopper-cli/**'
+      - '.github/workflows/graphopper-cli.yml'
+
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: graphopper-cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: graphopper-cli/package-lock.json
+      - run: npm ci
+      - run: npm run check

@@ -1,0 +1,9 @@
+.env
+coverage/
+dist/
+node_modules/
+.npm-cache/
+*.tgz
+*.sha256
+*.log
+*.tgz
